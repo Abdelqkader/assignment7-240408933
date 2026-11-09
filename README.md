@@ -66,3 +66,66 @@ src/
 
 All pages render inside `Layout`, which uses `<Outlet />` for the matched child page.
 `ProductList` and `ProductDetail` are nested routes under `/products` (an index route and `:id`).
+
+## Reasoning Questions
+
+### 1. State choices
+
+- **Signed-in user:** in `AuthContext` (Context + `useReducer`). Many parts of the app need it
+  (NavBar, ProtectedRoute, Login), it changes very rarely, and the reducer gives two clear
+  transitions, `LOGGED_IN` and `LOGGED_OUT`.
+- **Cart:** in the Zustand store `cartStore.js`. It changes often (every add, +, −, remove) and
+  is read by components far apart (NavBar count, cards, detail page, cart page). With selectors,
+  each component only re-renders for the part it reads.
+- **Filter values:** in the URL query string (`?q=...&category=...`), read with
+  `useSearchParams`. That way a link or a refresh shows the same filtered view, and the back
+  button works.
+- **Product list:** local to `ProductList` through `useFetch`. It is server data used by one
+  page, so it does not need to be global. The filtered list is not state at all; it is
+  computed from the products and the URL during render.
+- **Theme:** in `Layout`, with `useLocalStorage`. Only the layout wrapper and the toggle in the
+  NavBar need it, and it has to survive a reload.
+
+### 2. Context versus store
+
+The user changes once per login, so Context is enough: when it changes, everything that reads
+it should re-render anyway. The cart changes many times, and a Context re-renders every
+consumer on every change, even a component that only shows the item count or only needs the
+`addItem` action. If the cart were in Context, all product cards and the NavBar would re-render
+on every quantity click. If the user were in Zustand it would still work, but we would lose the
+simple provider/reducer pattern for no gain, and nothing would force the app to be wrapped in a
+provider (`useAuth` throws a clear error if it is used outside `AuthProvider`).
+
+### 3. Custom hooks
+
+`useFetch` shares the **logic**: the reducer with `FETCH_START` / `FETCH_SUCCESS` /
+`FETCH_ERROR`, the effect that calls the fetcher, and the `AbortController` cleanup. It does
+**not** share the **state**: `ProductList` and `ProductDetail` each call the hook and each get
+their own `useReducer`, so loading the list never changes the detail page's data. The hook also
+does not know what it fetches; the page passes the fetching function and its inputs.
+
+### 4. Route parameters
+
+`useParams()` always returns strings, so `id` is the string `"3"`, not the number `3`. It
+mattered for the "Next product" link: `id + 1` would give `"31"`, so I convert it first with
+`Number(id) + 1`, and only show the link when it is an integer. The cart uses `product.id`
+from the API response (a number), not the URL value, so comparing ids inside the store with
+`===` works.
+
+### 5. Protected routes
+
+`ProtectedRoute` only decides what the browser shows. Anyone can open the developer tools,
+change the JavaScript or the state, and see the page; the "password" is even inside the
+bundle. Real security needs a server: it checks the password, gives back a session or a token
+(for example in an httpOnly cookie), and refuses to send private data (like a real cart or
+orders) unless that token is valid. The client check would then only be for a nicer
+experience.
+
+### 6. Deep links
+
+On a plain static file server, reloading `/products/3` asks the server for a file called
+`/products/3`. That file does not exist, so the server answers 404 and React never loads. The
+Vite dev server has a fallback for single-page apps: for unknown paths it sends back
+`index.html`, React Router starts, reads the URL and shows the right page. In production the
+server needs the same rewrite rule (send `index.html` for every route).
+
