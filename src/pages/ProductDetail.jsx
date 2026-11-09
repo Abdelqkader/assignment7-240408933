@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { fetchProduct } from '../api/productsApi.js';
 import { useFetch } from '../hooks/useFetch.js';
+import { useCartStore } from '../store/cartStore.js';
 
 export default function ProductDetail() {
   // Route parameters are always strings.
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const addItem = useCartStore((state) => state.addItem);
 
   // id is a dependency, so editing the URL to another product loads it.
   const { loading, error, data: product } = useFetch((signal) => fetchProduct(id, signal), [id]);
@@ -46,6 +48,9 @@ export default function ProductDetail() {
       <p>{product.description}</p>
       <p className="price">${product.price.toFixed(2)}</p>
       <div className="detail-actions">
+        <button type="button" onClick={() => addItem(product)}>
+          Add to cart
+        </button>
         {Number.isInteger(numericId) && (
           <Link to={`/products/${numericId + 1}`} state={location.state}>
             Next product →
