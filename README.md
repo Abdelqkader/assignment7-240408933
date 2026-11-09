@@ -129,3 +129,34 @@ Vite dev server has a fallback for single-page apps: for unknown paths it sends 
 `index.html`, React Router starts, reads the URL and shows the right page. In production the
 server needs the same rewrite rule (send `index.html` for every route).
 
+## Self-Study Notes
+
+- **Updating one query parameter and keeping the others.** In the React Router docs I found
+  that `setSearchParams` also accepts a function that gets the current params. In
+  `ProductList` I copy them with `new URLSearchParams(previous)`, then `set` or `delete` only
+  the one that changed, so changing the category keeps the search text. I pass
+  `{ replace: true }` so typing in the search box does not add a history entry for every
+  letter.
+- **Starting the store from localStorage safely.** `localStorage.getItem` returns `null` when
+  the key is missing, `JSON.parse` throws on broken text, and the saved value could have the
+  wrong shape. `loadItems()` handles all three: `null` → empty cart, `try/catch` around the
+  parse, and it keeps only items with a number `id` and `price`, a string `title` and a
+  positive integer `quantity`. Saving is done with `useCartStore.subscribe(...)`, which the
+  Zustand docs describe for reacting to changes outside React.
+- **Light/dark theme.** I used CSS custom properties: the `.app` wrapper defines `--bg`,
+  `--text`, `--surface`, ..., and `.app.theme-dark` gives them other values. Every rule uses
+  the variables, so changing one class name on the wrapper changes the whole page.
+
+## Challenges
+
+- **Back button and filters.** When going from a filtered list to a product and back, the
+  filters were lost. I pass the list's query string in the link state and the Back button
+  navigates to `/products` plus that query string.
+- **Re-renders of the NavBar.** Selecting the whole `items` array in the NavBar and counting it
+  there would re-render the bar on every change to any item. Selecting the count as a number
+  with `selectItemCount` avoids that, because Zustand compares the selected value and a number
+  only changes when the count changes.
+- **Login redirect without a history entry.** After signing in, the user should not come back
+  to the login page with the back button. `navigate(redirectTo, { replace: true })` replaces it.
+- **Aborted requests.** In development `StrictMode` runs effects twice, so the first request is
+  aborted. `useFetch` ignores `AbortError` so it does not show a false error.
